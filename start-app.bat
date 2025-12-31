@@ -1,0 +1,3 @@
+@echo off
+echo Starting Video Muter...
+call npm start

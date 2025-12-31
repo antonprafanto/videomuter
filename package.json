@@ -1,0 +1,58 @@
+{
+  "name": "video-muter",
+  "version": "1.0.0",
+  "description": "Free & Open Source desktop application untuk mute banyak video sekaligus",
+  "main": "main.js",
+  "author": "Anton Prafanto",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/antonprafanto/videomuter.git"
+  },
+  "homepage": "https://github.com/antonprafanto/videomuter",
+  "bugs": {
+    "url": "https://github.com/antonprafanto/videomuter/issues"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": [
+    "video",
+    "mute",
+    "ffmpeg",
+    "batch"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "fluent-ffmpeg": "^2.1.2"
+  },
+  "build": {
+    "appId": "com.anton.videomuter",
+    "productName": "Video Muter",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "mute.png"
+    },
+    "files": [
+      "**/*",
+      "!tasks/**/*",
+      "node_modules/ffmpeg-static/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**/*"
+    ],
+    "portable": {
+      "artifactName": "VideoMuter-Portable.exe"
+    }
+  }
+}

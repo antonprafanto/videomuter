@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Video Muter - Batch Mute Videos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="title">🎬 Video Muter</h1>
+        <p class="subtitle">Mute banyak video sekaligus dengan mudah</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="dropZone">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <h3 class="drop-title">Drag & Drop Video Files</h3>
+        <p class="drop-text">atau</p>
+        <button class="btn btn-primary" id="selectFilesBtn">Pilih File Video</button>
+        <p class="drop-hint">Support: MP4, AVI, MOV, MKV, FLV, WMV, WebM, M4V</p>
+      </div>
+
+      <!-- File List Section -->
+      <div class="file-list-section" id="fileListSection" style="display: none;">
+        <div class="section-header">
+          <h3 class="section-title">📁 File yang akan di-proses (<span id="fileCount">0</span>)</h3>
+          <button class="btn btn-text" id="clearFilesBtn">Clear All</button>
+        </div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <!-- Output Settings -->
+      <div class="output-settings" id="outputSettings" style="display: none;">
+        <div class="setting-row">
+          <label class="setting-label">📂 Output Folder:</label>
+          <div class="setting-input-group">
+            <input type="text" class="setting-input" id="outputFolderInput" placeholder="Same as source files" readonly>
+            <button class="btn btn-secondary" id="selectOutputBtn">Browse</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">📝 Suffix nama file:</label>
+          <input type="text" class="setting-input" id="suffixInput" value="_muted" placeholder="_muted">
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons" id="actionButtons" style="display: none;">
+        <button class="btn btn-large btn-success" id="startBtn">
+          <span class="btn-icon">▶</span>
+          Mulai Mute Videos
+        </button>
+      </div>
+
+      <!-- Progress Section -->
+      <div class="progress-section" id="progressSection" style="display: none;">
+        <div class="progress-header">
+          <h3 class="section-title">⚡ Processing...</h3>
+          <div class="progress-stats">
+            <span id="progressStats">0 / 0 completed</span>
+          </div>
+        </div>
+        <div class="progress-list" id="progressList"></div>
+      </div>
+
+      <!-- Results Section -->
+      <div class="results-section" id="resultsSection" style="display: none;">
+        <div class="results-header">
+          <h3 class="section-title">✅ Selesai!</h3>
+        </div>
+        <div class="results-summary" id="resultsSummary"></div>
+        <button class="btn btn-primary" id="processMoreBtn">Process More Videos</button>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>v1.0.0 | Powered by FFmpeg | Made with ❤️ by Anton Prafanto</p>
+      <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+        <button class="btn-donate" id="donateBtn">
+          <svg class="donate-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z"/>
+          </svg>
+          Kritik & Saran
+        </button>
+        <button class="btn-update" id="checkUpdateBtn">
+          <svg class="update-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+          Check for Updates
+        </button>
+      </div>
+      <p style="margin-top: 10px; font-size: 12px; color: #888;">
+        <a href="https://github.com/antonprafanto/videomuter" target="_blank" style="color: #667eea; text-decoration: none;">⭐ Star on GitHub</a> |
+        Open Source & Free Forever
+      </p>
+    </footer>
+  </div>
+
+  <!-- FFmpeg Warning Modal -->
+  <div class="modal" id="ffmpegWarning" style="display: none;">
+    <div class="modal-content">
+      <h3>⚠️ FFmpeg Not Found</h3>
+      <p>FFmpeg is required to process videos. Please install FFmpeg and add it to your system PATH.</p>
+      <a href="https://ffmpeg.org/download.html" target="_blank" class="btn btn-primary">Download FFmpeg</a>
+      <button class="btn btn-text" id="closeWarning">Close</button>
+    </div>
+  </div>
+
+  <!-- Update Available Modal -->
+  <div class="modal" id="updateModal" style="display: none;">
+    <div class="modal-content">
+      <h3 id="updateTitle">🎉 Update Available!</h3>
+      <div id="updateContent">
+        <p>A new version is available!</p>
+        <p><strong>Current version:</strong> <span id="currentVersion"></span></p>
+        <p><strong>Latest version:</strong> <span id="latestVersion"></span></p>
+        <div id="releaseNotes" style="margin: 20px 0; text-align: left; max-height: 200px; overflow-y: auto;"></div>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <a href="#" id="downloadUpdateBtn" target="_blank" class="btn btn-primary">Download Update</a>
+        <button class="btn btn-text" id="closeUpdateModal">Later</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

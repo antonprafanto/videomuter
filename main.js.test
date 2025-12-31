@@ -1,0 +1,159 @@
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = electron;
+const path = require('path');
+const ffmpeg = require('fluent-ffmpeg');
+const fs = require('fs');
+const ffmpegStatic = require('ffmpeg-static');
+
+// Set FFmpeg binary path to bundled version
+ffmpeg.setFfmpegPath(ffmpegStatic);
+
+let mainWindow;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    minWidth: 800,
+    minHeight: 600,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+    title: 'Video Muter - Batch Mute Videos',
+    backgroundColor: '#1a1a1a',
+    autoHideMenuBar: true,
+  });
+
+  mainWindow.loadFile('renderer/index.html');
+
+  // Uncomment untuk debug
+  // mainWindow.webContents.openDevTools();
+}
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// Handle file selection dialog
+ipcMain.handle('select-videos', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Video Files', extensions: ['mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'webm', 'm4v'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (!result.canceled) {
+    return result.filePaths;
+  }
+  return [];
+});
+
+// Handle output folder selection
+ipcMain.handle('select-output-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory']
+  });
+
+  if (!result.canceled) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
+// Handle muting single video
+ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
+  return new Promise((resolve, reject) => {
+    // Check if input file exists
+    if (!fs.existsSync(inputPath)) {
+      reject(new Error(`Input file not found: ${inputPath}`));
+      return;
+    }
+
+    // Ensure output directory exists
+    const outputDir = path.dirname(outputPath);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-c:v copy',  // Copy video stream without re-encoding
+        '-an'         // Remove audio stream
+      ])
+      .output(outputPath)
+      .on('start', (commandLine) => {
+        console.log('FFmpeg command:', commandLine);
+        event.sender.send('video-progress', {
+          file: path.basename(inputPath),
+          status: 'processing'
+        });
+      })
+      .on('progress', (progress) => {
+        event.sender.send('video-progress', {
+          file: path.basename(inputPath),
+          percent: progress.percent || 0,
+          status: 'processing'
+        });
+      })
+      .on('end', () => {
+        console.log('Finished processing:', path.basename(inputPath));
+        event.sender.send('video-progress', {
+          file: path.basename(inputPath),
+          percent: 100,
+          status: 'completed'
+        });
+        resolve({
+          success: true,
+          inputPath,
+          outputPath
+        });
+      })
+      .on('error', (err) => {
+        console.error('Error processing:', path.basename(inputPath), err);
+        event.sender.send('video-progress', {
+          file: path.basename(inputPath),
+          status: 'error',
+          error: err.message
+        });
+        reject(new Error(`FFmpeg error: ${err.message}`));
+      })
+      .run();
+  });
+});
+
+// Check if FFmpeg is available
+ipcMain.handle('check-ffmpeg', async () => {
+  return new Promise((resolve) => {
+    ffmpeg.getAvailableFormats((err) => {
+      if (err) {
+        resolve({
+          available: false,
+          error: 'FFmpeg not found. Please install FFmpeg and add it to your system PATH.'
+        });
+      } else {
+        resolve({ available: true });
+      }
+    });
+  });
+});
+
+// Open external link (for donation button)
+ipcMain.handle('open-external-link', async (_event, url) => {
+  await shell.openExternal(url);
+});
