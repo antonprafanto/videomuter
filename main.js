@@ -4,6 +4,9 @@ const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
 
 let mainWindow;
+let currentFFmpegProcess = null;
+let isPaused = false;
+let isCancelled = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -82,6 +85,75 @@ ipcMain.handle('select-output-folder', async () => {
   return null;
 });
 
+// Get file size
+ipcMain.handle('get-file-size', async (_event, filePath) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      return {
+        success: true,
+        size: stats.size
+      };
+    }
+    return {
+      success: false,
+      error: 'File not found'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// Check disk space
+ipcMain.handle('check-disk-space', async (_event, filePaths, outputFolder) => {
+  try {
+    const checkDiskSpace = require('check-disk-space').default;
+
+    // Calculate total size of input files
+    let totalInputSize = 0;
+    for (const filePath of filePaths) {
+      if (fs.existsSync(filePath)) {
+        const stats = fs.statSync(filePath);
+        totalInputSize += stats.size;
+      }
+    }
+
+    // Estimate output size (similar to input since we're copying video stream)
+    // Add 10% buffer for safety
+    const estimatedOutputSize = totalInputSize * 1.1;
+
+    // Determine which drive to check
+    let drivePath;
+    if (outputFolder) {
+      drivePath = outputFolder;
+    } else {
+      // Use first file's drive
+      drivePath = filePaths[0];
+    }
+
+    // Get disk info (Windows-compatible)
+    const drive = path.parse(drivePath).root || drivePath.substring(0, 3);
+    const diskInfo = await checkDiskSpace(drive);
+
+    return {
+      success: true,
+      available: diskInfo.free,
+      required: estimatedOutputSize,
+      hasEnoughSpace: diskInfo.free > estimatedOutputSize,
+      drive: drive
+    };
+  } catch (error) {
+    console.error('Error checking disk space:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
 // Handle muting single video
 ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
   return new Promise((resolve, reject) => {
@@ -97,7 +169,7 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    ffmpeg(inputPath)
+    const command = ffmpeg(inputPath)
       .outputOptions([
         '-c:v copy',  // Copy video stream without re-encoding
         '-an'         // Remove audio stream
@@ -119,6 +191,7 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
       })
       .on('end', () => {
         console.log('Finished processing:', path.basename(inputPath));
+        currentFFmpegProcess = null;
         event.sender.send('video-progress', {
           file: path.basename(inputPath),
           percent: 100,
@@ -132,15 +205,80 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
       })
       .on('error', (err) => {
         console.error('Error processing:', path.basename(inputPath), err);
+        currentFFmpegProcess = null;
+
+        // Provide more helpful error messages
+        let errorMessage = err.message;
+        if (err.message.includes('ENOENT')) {
+          errorMessage = 'File tidak ditemukan atau tidak dapat diakses.';
+        } else if (err.message.includes('ENOSPC')) {
+          errorMessage = 'Disk space tidak cukup untuk menyimpan output file.';
+        } else if (err.message.includes('EACCES') || err.message.includes('EPERM')) {
+          errorMessage = 'Tidak ada izin untuk mengakses file. Pastikan file tidak sedang digunakan aplikasi lain.';
+        } else if (err.message.includes('Invalid data found')) {
+          errorMessage = 'File video rusak atau format tidak didukung.';
+        } else if (err.message.includes('already exists')) {
+          errorMessage = 'Output file sudah ada. Hapus file lama atau ubah nama output.';
+        }
+
         event.sender.send('video-progress', {
           file: path.basename(inputPath),
           status: 'error',
-          error: err.message
+          error: errorMessage,
+          detailedError: err.message
         });
-        reject(new Error(`FFmpeg error: ${err.message}`));
-      })
-      .run();
+        reject(new Error(errorMessage));
+      });
+
+    // Store current process for pause/resume/cancel
+    currentFFmpegProcess = command;
+    command.run();
   });
+});
+
+// Pause current video processing (NOT SUPPORTED by FFmpeg)
+ipcMain.handle('pause-processing', async () => {
+  // Note: FFmpeg doesn't support true pause/resume
+  // This would require stopping and restarting from a checkpoint
+  // which is complex and not well-supported by fluent-ffmpeg
+  isPaused = true;
+  return { success: true, paused: true, message: 'Processing will pause after current video completes' };
+});
+
+// Resume current video processing
+ipcMain.handle('resume-processing', async () => {
+  isPaused = false;
+  return { success: true, paused: false };
+});
+
+// Cancel current video processing
+ipcMain.handle('cancel-processing', async () => {
+  isCancelled = true;
+  if (currentFFmpegProcess) {
+    try {
+      currentFFmpegProcess.kill();
+      currentFFmpegProcess = null;
+    } catch (error) {
+      console.error('Error killing process:', error);
+    }
+  }
+  return { success: true, cancelled: true };
+});
+
+// Get pause/cancel status
+ipcMain.handle('get-processing-status', async () => {
+  return {
+    isPaused,
+    isCancelled
+  };
+});
+
+// Reset processing status
+ipcMain.handle('reset-processing-status', async () => {
+  isPaused = false;
+  isCancelled = false;
+  currentFFmpegProcess = null;
+  return { success: true };
 });
 
 // Check if FFmpeg is available

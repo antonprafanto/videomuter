@@ -28,5 +28,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
 
   // Check for updates
-  checkForUpdates: () => ipcRenderer.invoke('check-for-updates')
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+  // Pause/Resume/Cancel processing
+  pauseProcessing: () => ipcRenderer.invoke('pause-processing'),
+  resumeProcessing: () => ipcRenderer.invoke('resume-processing'),
+  cancelProcessing: () => ipcRenderer.invoke('cancel-processing'),
+  getProcessingStatus: () => ipcRenderer.invoke('get-processing-status'),
+  resetProcessingStatus: () => ipcRenderer.invoke('reset-processing-status'),
+
+  // Check disk space
+  checkDiskSpace: (filePaths, outputFolder) => ipcRenderer.invoke('check-disk-space', filePaths, outputFolder),
+
+  // Get file size
+  getFileSize: (filePath) => ipcRenderer.invoke('get-file-size', filePath)
 });

@@ -5,6 +5,8 @@ let isProcessing = false;
 let processedCount = 0;
 let successCount = 0;
 let errorCount = 0;
+let processingStartTime = 0;
+let currentFileStartTime = 0;
 
 // DOM elements
 const dropZone = document.getElementById('dropZone');
@@ -32,6 +34,9 @@ const checkUpdateBtn = document.getElementById('checkUpdateBtn');
 const updateModal = document.getElementById('updateModal');
 const closeUpdateModal = document.getElementById('closeUpdateModal');
 const downloadUpdateBtn = document.getElementById('downloadUpdateBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const cancelBtn = document.getElementById('cancelBtn');
 
 // Initialize app
 async function init() {
@@ -41,6 +46,14 @@ async function init() {
     showFFmpegWarning();
     return;
   }
+
+  // Request notification permission
+  if ('Notification' in window && Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+
+  // Load recent files
+  loadRecentFiles();
 
   setupEventListeners();
   setupProgressListener();
@@ -85,6 +98,57 @@ function setupEventListeners() {
   closeUpdateModal.addEventListener('click', () => {
     updateModal.style.display = 'none';
   });
+
+  // Pause processing
+  pauseBtn.addEventListener('click', handlePause);
+
+  // Resume processing
+  resumeBtn.addEventListener('click', handleResume);
+
+  // Cancel processing
+  cancelBtn.addEventListener('click', handleCancel);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', handleKeyboardShortcuts);
+}
+
+// Handle keyboard shortcuts
+function handleKeyboardShortcuts(e) {
+  // Ctrl+O: Open files
+  if (e.ctrlKey && e.key === 'o') {
+    e.preventDefault();
+    handleSelectFiles();
+  }
+
+  // Ctrl+Enter: Start processing
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    if (!isProcessing && selectedFiles.length > 0) {
+      startProcessing();
+    }
+  }
+
+  // Space: Pause/Resume
+  if (e.key === ' ' && isProcessing) {
+    e.preventDefault();
+    if (pauseBtn.style.display !== 'none') {
+      handlePause();
+    } else {
+      handleResume();
+    }
+  }
+
+  // Escape: Cancel
+  if (e.key === 'Escape' && isProcessing) {
+    e.preventDefault();
+    handleCancel();
+  }
+
+  // Delete: Clear files
+  if (e.key === 'Delete' && !isProcessing && selectedFiles.length > 0) {
+    e.preventDefault();
+    clearFiles();
+  }
 }
 
 // Setup progress listener
@@ -162,11 +226,12 @@ function addFiles(files) {
 }
 
 // Update file list display
-function updateFileList() {
+async function updateFileList() {
   fileList.innerHTML = '';
   fileCount.textContent = selectedFiles.length;
 
-  selectedFiles.forEach((file, index) => {
+  for (let index = 0; index < selectedFiles.length; index++) {
+    const file = selectedFiles[index];
     const fileItem = document.createElement('div');
     fileItem.className = 'file-item';
 
@@ -179,7 +244,16 @@ function updateFileList() {
 
     const filePath = document.createElement('div');
     filePath.className = 'file-path';
-    filePath.textContent = file;
+
+    // Get file size
+    const sizeInfo = await window.electronAPI.getFileSize(file);
+    let sizeText = '';
+    if (sizeInfo.success) {
+      const sizeMB = (sizeInfo.size / (1024 * 1024)).toFixed(2);
+      sizeText = ` • ${sizeMB} MB`;
+    }
+
+    filePath.textContent = file + sizeText;
 
     fileInfo.appendChild(fileName);
     fileInfo.appendChild(filePath);
@@ -192,7 +266,7 @@ function updateFileList() {
     fileItem.appendChild(fileInfo);
     fileItem.appendChild(removeBtn);
     fileList.appendChild(fileItem);
-  });
+  }
 }
 
 // Remove file from list
@@ -239,10 +313,23 @@ async function handleSelectOutputFolder() {
 async function startProcessing() {
   if (isProcessing || selectedFiles.length === 0) return;
 
+  // Check disk space first
+  const diskCheck = await window.electronAPI.checkDiskSpace(selectedFiles, outputFolder);
+  if (diskCheck.success && !diskCheck.hasEnoughSpace) {
+    const availableGB = (diskCheck.available / (1024 * 1024 * 1024)).toFixed(2);
+    const requiredGB = (diskCheck.required / (1024 * 1024 * 1024)).toFixed(2);
+    alert(`Disk space tidak cukup!\n\nDrive: ${diskCheck.drive}\nTersedia: ${availableGB} GB\nDibutuhkan: ${requiredGB} GB\n\nSilakan kosongkan disk space atau pilih output folder yang berbeda.`);
+    return;
+  }
+
+  // Reset processing status
+  await window.electronAPI.resetProcessingStatus();
+
   isProcessing = true;
   processedCount = 0;
   successCount = 0;
   errorCount = 0;
+  processingStartTime = Date.now();
 
   // Hide other sections
   dropZone.style.display = 'none';
@@ -262,6 +349,22 @@ async function startProcessing() {
 
   // Process each file
   for (const file of selectedFiles) {
+    // Check if cancelled
+    let status = await window.electronAPI.getProcessingStatus();
+    if (status.isCancelled) {
+      console.log('Processing cancelled by user');
+      break;
+    }
+
+    // Wait while paused
+    while (status.isPaused) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      status = await window.electronAPI.getProcessingStatus();
+      if (status.isCancelled) break;
+    }
+
+    if (status.isCancelled) break;
+
     try {
       const outputPath = getOutputPath(file);
       await window.electronAPI.muteVideo(file, outputPath);
@@ -341,13 +444,32 @@ function updateProgress(data) {
     const errorMsg = document.createElement('div');
     errorMsg.className = 'progress-error';
     errorMsg.textContent = data.error || 'Unknown error';
+
+    // Add detailed error tooltip if available
+    if (data.detailedError && data.detailedError !== data.error) {
+      errorMsg.title = `Detail: ${data.detailedError}`;
+      errorMsg.style.cursor = 'help';
+    }
+
     progressItem.appendChild(errorMsg);
   }
 }
 
 // Update progress stats
 function updateProgressStats() {
-  progressStats.textContent = `${processedCount} / ${selectedFiles.length} completed`;
+  const elapsed = Date.now() - processingStartTime;
+  const avgTimePerFile = elapsed / Math.max(processedCount, 1);
+  const remainingFiles = selectedFiles.length - processedCount;
+  const estimatedTimeLeft = avgTimePerFile * remainingFiles;
+
+  let etaText = '';
+  if (remainingFiles > 0 && processedCount > 0) {
+    const minutes = Math.floor(estimatedTimeLeft / 60000);
+    const seconds = Math.floor((estimatedTimeLeft % 60000) / 1000);
+    etaText = ` • ETA: ${minutes}m ${seconds}s`;
+  }
+
+  progressStats.textContent = `${processedCount} / ${selectedFiles.length} completed${etaText}`;
 }
 
 // Show results
@@ -363,6 +485,17 @@ function showResults() {
   `;
 
   isProcessing = false;
+
+  // Save recent files
+  saveRecentFiles(selectedFiles);
+
+  // Show desktop notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('Video Muter - Proses Selesai!', {
+      body: `${successCount} video berhasil dimute${errorCount > 0 ? `, ${errorCount} gagal` : ''}`,
+      icon: 'mute.png'
+    });
+  }
 }
 
 // Reset app for new batch
@@ -455,6 +588,91 @@ async function checkForUpdates() {
       </svg>
       Check for Updates
     `;
+  }
+}
+
+// Handle pause
+async function handlePause() {
+  const result = await window.electronAPI.pauseProcessing();
+  if (result.success) {
+    pauseBtn.style.display = 'none';
+    resumeBtn.style.display = 'block';
+  } else {
+    console.error('Failed to pause:', result.error);
+  }
+}
+
+// Handle resume
+async function handleResume() {
+  const result = await window.electronAPI.resumeProcessing();
+  if (result.success) {
+    pauseBtn.style.display = 'block';
+    resumeBtn.style.display = 'none';
+  } else {
+    console.error('Failed to resume:', result.error);
+  }
+}
+
+// Handle cancel
+async function handleCancel() {
+  const confirmed = confirm('Apakah Anda yakin ingin membatalkan semua proses?');
+  if (!confirmed) return;
+
+  const result = await window.electronAPI.cancelProcessing();
+  if (result.success) {
+    // Reset UI
+    isProcessing = false;
+    progressSection.style.display = 'none';
+    dropZone.style.display = 'block';
+    fileListSection.style.display = 'block';
+    outputSettings.style.display = 'block';
+    actionButtons.style.display = 'block';
+
+    // Reset buttons
+    pauseBtn.style.display = 'block';
+    resumeBtn.style.display = 'none';
+  } else {
+    console.error('Failed to cancel:', result.error);
+  }
+}
+
+// Recent files management
+function saveRecentFiles(files) {
+  try {
+    let recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+
+    // Add new files to the beginning
+    files.forEach(file => {
+      // Remove if already exists
+      recentFiles = recentFiles.filter(f => f !== file);
+      // Add to beginning
+      recentFiles.unshift(file);
+    });
+
+    // Keep only last 10 files
+    recentFiles = recentFiles.slice(0, 10);
+
+    localStorage.setItem('recentFiles', JSON.stringify(recentFiles));
+  } catch (error) {
+    console.error('Error saving recent files:', error);
+  }
+}
+
+function loadRecentFiles() {
+  try {
+    const recentFiles = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+    if (recentFiles.length > 0) {
+      // Show recent files hint in drop zone
+      const dropZone = document.getElementById('dropZone');
+      const recentHint = document.createElement('p');
+      recentHint.className = 'drop-hint';
+      recentHint.style.marginTop = '20px';
+      recentHint.style.fontSize = '0.85rem';
+      recentHint.innerHTML = `<strong>Recent:</strong> ${recentFiles.slice(0, 3).map(f => getFileName(f)).join(', ')}${recentFiles.length > 3 ? '...' : ''}`;
+      dropZone.appendChild(recentHint);
+    }
+  } catch (error) {
+    console.error('Error loading recent files:', error);
   }
 }
 
