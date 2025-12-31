@@ -23,7 +23,6 @@ Thumbs.db
 *.swo
 
 # Package manager
-package-lock.json
 yarn.lock
 
 # Test videos (optional)
