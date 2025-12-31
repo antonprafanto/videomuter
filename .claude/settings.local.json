@@ -37,7 +37,10 @@
       "Bash(powershell.exe -Command \"Get-Content QUICK_RELEASE_GUIDE.txt\")",
       "Bash(powershell.exe -Command \"Start-Process ''explorer.exe'' -ArgumentList ''dist''\")",
       "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/releases/new?tag=v1.2.0&title=Video+Muter+v1.2.0+-+Medium+Priority+Features''\")",
-      "Bash(powershell.exe -Command \"Get-Content RELEASE_NOTES_v1.2.0.md | Set-Clipboard; Write-Host ''Release notes for v1.2.0 copied to clipboard!''\")"
+      "Bash(powershell.exe -Command \"Get-Content RELEASE_NOTES_v1.2.0.md | Set-Clipboard; Write-Host ''Release notes for v1.2.0 copied to clipboard!''\")",
+      "Bash(git tag:*)",
+      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/actions''\")",
+      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/releases''\")"
     ],
     "deny": [],
     "ask": []
