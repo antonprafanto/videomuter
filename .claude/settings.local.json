@@ -28,7 +28,14 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(git remote add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(gh release create v1.1.0 dist/VideoMuter-Portable.exe --title \"Video Muter v1.1.0 - High Priority Features\" --notes \"$\\(cat <<''EOF''\n# 🎉 Video Muter v1.1.0\n\nMajor update with 8 new high-priority features!\n\n## ✨ New Features\n\n### 1. ⏸️ Pause/Resume/Cancel Controls\n- Pause processing between videos\n- Resume paused processing\n- Cancel all processing with confirmation\n- Control buttons in progress view\n\n### 2. 💾 Disk Space Check\n- Automatically checks available disk space before processing\n- Shows warning if space is insufficient\n- Displays drive, available space, and required space\n\n### 3. ⏱️ ETA \\(Estimated Time Remaining\\)\n- Real-time calculation of time remaining\n- Displayed in minutes and seconds\n- Updates as files are processed\n\n### 4. ❌ Better Error Messages\n- User-friendly error messages in Indonesian\n- Specific messages for common errors\n- Technical details available on hover\n\n### 5. 📊 File Size Information\n- Shows file size in MB for each file\n- Helps estimate processing time\n\n### 6. 🔔 Desktop Notifications\n- Windows notification when processing completes\n- Shows success/failure count\n- Never miss when your videos are done!\n\n### 7. 📁 Recent Files History\n- Remembers last 10 processed files\n- Quick access to recent work\n\n### 8. ⌨️ Keyboard Shortcuts\n- **Ctrl+O**: Open files\n- **Ctrl+Enter**: Start processing\n- **Space**: Pause/Resume\n- **Esc**: Cancel\n- **Delete**: Clear files\n\n## 📦 Installation\n\nDownload `VideoMuter-Portable.exe` and run it. No installation required!\n\n## 🐛 Known Limitations\n\n- Pause/Resume works between videos, not during individual video processing \\(FFmpeg limitation\\)\n\n## 📝 Full Changelog\n\nSee [CHANGELOG.md]\\(https://github.com/antonprafanto/videomuter/blob/main/CHANGELOG.md\\) for complete details.\n\n---\n\n🤖 Built with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
+      "Bash(curl:*)",
+      "Bash(https://api.github.com/repos/antonprafanto/videomuter/releases )",
+      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/releases/new?tag=v1.1.0&title=Video+Muter+v1.1.0+-+High+Priority+Features''\")",
+      "Bash(powershell.exe -Command \"Get-Content RELEASE_NOTES_v1.1.0.md | Set-Clipboard; Write-Host ''Release notes copied to clipboard!''\")",
+      "Bash(powershell.exe -Command \"Get-Content QUICK_RELEASE_GUIDE.txt\")",
+      "Bash(powershell.exe -Command \"Start-Process ''explorer.exe'' -ArgumentList ''dist''\")"
     ],
     "deny": [],
     "ask": []

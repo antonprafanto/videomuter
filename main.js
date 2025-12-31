@@ -8,6 +8,18 @@ let currentFFmpegProcess = null;
 let isPaused = false;
 let isCancelled = false;
 
+// Simple logging function
+function log(level, message, data = {}) {
+  const timestamp = new Date().toISOString();
+  const logData = { timestamp, level, message, ...data };
+  console.log(`[${level}] ${timestamp} - ${message}`, data);
+
+  // Send to renderer for display (optional)
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('log-message', logData);
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -154,8 +166,8 @@ ipcMain.handle('check-disk-space', async (_event, filePaths, outputFolder) => {
   }
 });
 
-// Handle muting single video
-ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
+// Handle muting/adjusting volume single video
+ipcMain.handle('mute-video', async (event, inputPath, outputPath, volumePercent = 0) => {
   return new Promise((resolve, reject) => {
     // Check if input file exists
     if (!fs.existsSync(inputPath)) {
@@ -169,13 +181,27 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    const command = ffmpeg(inputPath)
-      .outputOptions([
+    const command = ffmpeg(inputPath);
+
+    // Apply volume adjustment
+    if (volumePercent === 0) {
+      // Mute: remove audio
+      command.outputOptions([
         '-c:v copy',  // Copy video stream without re-encoding
         '-an'         // Remove audio stream
-      ])
-      .output(outputPath)
+      ]);
+    } else {
+      // Adjust volume
+      const volumeFilter = volumePercent / 100;
+      command.outputOptions([
+        '-c:v copy',  // Copy video stream without re-encoding
+        `-af volume=${volumeFilter}`  // Adjust audio volume
+      ]);
+    }
+
+    command.output(outputPath)
       .on('start', (commandLine) => {
+        log('INFO', 'Started processing', { file: path.basename(inputPath), volume: volumePercent });
         console.log('FFmpeg command:', commandLine);
         event.sender.send('video-progress', {
           file: path.basename(inputPath),
@@ -190,7 +216,7 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
         });
       })
       .on('end', () => {
-        console.log('Finished processing:', path.basename(inputPath));
+        log('SUCCESS', 'Completed processing', { file: path.basename(inputPath) });
         currentFFmpegProcess = null;
         event.sender.send('video-progress', {
           file: path.basename(inputPath),
@@ -204,7 +230,7 @@ ipcMain.handle('mute-video', async (event, inputPath, outputPath) => {
         });
       })
       .on('error', (err) => {
-        console.error('Error processing:', path.basename(inputPath), err);
+        log('ERROR', 'Failed processing', { file: path.basename(inputPath), error: err.message });
         currentFFmpegProcess = null;
 
         // Provide more helpful error messages

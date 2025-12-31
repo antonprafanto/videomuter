@@ -8,8 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Select output folder
   selectOutputFolder: () => ipcRenderer.invoke('select-output-folder'),
 
-  // Mute a single video
-  muteVideo: (inputPath, outputPath) => ipcRenderer.invoke('mute-video', inputPath, outputPath),
+  // Mute or adjust volume of a single video
+  muteVideo: (inputPath, outputPath, volumePercent) => ipcRenderer.invoke('mute-video', inputPath, outputPath, volumePercent),
 
   // Check if FFmpeg is available
   checkFFmpeg: () => ipcRenderer.invoke('check-ffmpeg'),

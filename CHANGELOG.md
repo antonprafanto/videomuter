@@ -2,6 +2,48 @@
 
 All notable changes to Video Muter will be documented in this file.
 
+## [1.2.0] - 2025-12-31
+
+### Added - Medium Priority Features ⭐
+
+#### 1. ⚡ Parallel Processing
+- Process 2-4 videos simultaneously for 2-4x faster speed
+- Configurable concurrency level (1, 2, 3, or 4 videos at once)
+- Balanced default: 2 videos for optimal speed/CPU usage
+- Smart queue management
+
+#### 2. 🌓 Dark/Light Mode Toggle
+- Beautiful light mode for daytime use
+- Smooth transition animations
+- Saves preference in localStorage
+- Toggle button in header (🌙/☀️)
+
+#### 3. 🔊 Volume Adjustment (Not Just Mute!)
+- Slider from 0% to 200%
+- 0% = Mute (remove audio)
+- 100% = Keep original volume
+- 200% = Boost volume 2x
+- Any value in between for custom adjustment
+- Auto-updates file suffix based on volume
+
+#### 4. 🔄 Auto-Retry Failed Videos
+- Automatically retries failed videos up to 2 times
+- Total 3 attempts per video
+- 1 second delay between retries
+- Significantly improves success rate
+
+#### 5. 📝 Logging System
+- Console logging for all operations
+- Tracks start, progress, success, and errors
+- Helpful for debugging and support
+- Timestamps on all log entries
+
+### Technical Improvements
+- Enhanced error handling with retry logic
+- CSS variables for theming support
+- Improved performance with concurrent processing
+- Better user feedback with volume slider
+
 ## [1.1.0] - 2025-12-31
 
 ### Added - High Priority Features ✨

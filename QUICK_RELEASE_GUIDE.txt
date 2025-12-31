@@ -1,0 +1,37 @@
+========================================
+QUICK GUIDE: Create GitHub Release v1.1.0
+========================================
+
+Browser GitHub sudah terbuka otomatis!
+Release notes sudah di-copy ke clipboard!
+
+LANGKAH CEPAT (2 menit):
+------------------------
+
+1. Di halaman GitHub yang sudah terbuka:
+   ✓ Tag: v1.1.0 (sudah terisi)
+   ✓ Title: Video Muter v1.1.0 - High Priority Features (sudah terisi)
+
+2. Di bagian "Describe this release":
+   → Tekan Ctrl+V untuk paste release notes dari clipboard
+
+3. Di bagian "Attach binaries":
+   → Drag & drop file ini: dist\VideoMuter-Portable.exe
+
+4. Klik tombol hijau "Publish release"
+
+SELESAI! 🎉
+
+========================================
+
+Setelah release di-publish:
+- User v1.0.0 akan dapat notifikasi update
+- Auto-update di aplikasi akan berfungsi
+- Download link otomatis tersedia
+
+File penting:
+- Executable: dist\VideoMuter-Portable.exe
+- Changelog: CHANGELOG.md
+- Release Notes: RELEASE_NOTES_v1.1.0.md
+
+========================================

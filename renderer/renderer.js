@@ -7,6 +7,7 @@ let successCount = 0;
 let errorCount = 0;
 let processingStartTime = 0;
 let currentFileStartTime = 0;
+let concurrentLimit = 2; // Default parallel processing
 
 // DOM elements
 const dropZone = document.getElementById('dropZone');
@@ -19,6 +20,7 @@ const outputSettings = document.getElementById('outputSettings');
 const outputFolderInput = document.getElementById('outputFolderInput');
 const selectOutputBtn = document.getElementById('selectOutputBtn');
 const suffixInput = document.getElementById('suffixInput');
+const concurrentInput = document.getElementById('concurrentInput');
 const actionButtons = document.getElementById('actionButtons');
 const startBtn = document.getElementById('startBtn');
 const progressSection = document.getElementById('progressSection');
@@ -37,6 +39,10 @@ const downloadUpdateBtn = document.getElementById('downloadUpdateBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const cancelBtn = document.getElementById('cancelBtn');
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeValue = document.getElementById('volumeValue');
 
 // Initialize app
 async function init() {
@@ -51,6 +57,9 @@ async function init() {
   if ('Notification' in window && Notification.permission === 'default') {
     await Notification.requestPermission();
   }
+
+  // Load theme preference
+  loadTheme();
 
   // Load recent files
   loadRecentFiles();
@@ -108,8 +117,36 @@ function setupEventListeners() {
   // Cancel processing
   cancelBtn.addEventListener('click', handleCancel);
 
+  // Theme toggle
+  themeToggle.addEventListener('click', toggleTheme);
+
+  // Volume slider
+  volumeSlider.addEventListener('input', updateVolumeDisplay);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcuts);
+}
+
+// Update volume display
+function updateVolumeDisplay() {
+  const volume = parseInt(volumeSlider.value);
+  let label = '';
+
+  if (volume === 0) {
+    label = 'Mute (0%)';
+    suffixInput.value = '_muted';
+  } else if (volume === 100) {
+    label = 'Original (100%)';
+    suffixInput.value = '_original';
+  } else if (volume < 100) {
+    label = `Reduce (${volume}%)`;
+    suffixInput.value = `_${volume}pct`;
+  } else {
+    label = `Boost (${volume}%)`;
+    suffixInput.value = `_boost${volume}pct`;
+  }
+
+  volumeValue.textContent = label;
 }
 
 // Handle keyboard shortcuts
@@ -325,6 +362,9 @@ async function startProcessing() {
   // Reset processing status
   await window.electronAPI.resetProcessingStatus();
 
+  // Get concurrent limit from settings
+  concurrentLimit = parseInt(concurrentInput.value) || 2;
+
   isProcessing = true;
   processedCount = 0;
   successCount = 0;
@@ -347,8 +387,11 @@ async function startProcessing() {
     createProgressItem(file);
   });
 
-  // Process each file
-  for (const file of selectedFiles) {
+  // Process files with concurrency limit
+  const queue = [...selectedFiles];
+  const activeProcesses = [];
+
+  while (queue.length > 0 || activeProcesses.length > 0) {
     // Check if cancelled
     let status = await window.electronAPI.getProcessingStatus();
     if (status.isCancelled) {
@@ -365,22 +408,53 @@ async function startProcessing() {
 
     if (status.isCancelled) break;
 
-    try {
-      const outputPath = getOutputPath(file);
-      await window.electronAPI.muteVideo(file, outputPath);
-      successCount++;
-    } catch (error) {
-      console.error('Error processing:', file, error);
-      errorCount++;
+    // Start new processes up to concurrent limit
+    while (queue.length > 0 && activeProcesses.length < concurrentLimit) {
+      const file = queue.shift();
+      const processPromise = processFile(file).then(() => {
+        // Remove from active processes when done
+        const index = activeProcesses.indexOf(processPromise);
+        if (index > -1) activeProcesses.splice(index, 1);
+      });
+      activeProcesses.push(processPromise);
     }
-    processedCount++;
-    updateProgressStats();
+
+    // Wait for at least one process to complete
+    if (activeProcesses.length > 0) {
+      await Promise.race(activeProcesses);
+    }
   }
 
   // Show results
   setTimeout(() => {
     showResults();
   }, 1000);
+}
+
+// Process single file with retry
+async function processFile(file, retryCount = 0) {
+  const maxRetries = 2; // Max 2 retries (total 3 attempts)
+
+  try {
+    const outputPath = getOutputPath(file);
+    const volume = parseInt(volumeSlider.value);
+    await window.electronAPI.muteVideo(file, outputPath, volume);
+    successCount++;
+  } catch (error) {
+    console.error(`Error processing (attempt ${retryCount + 1}/${maxRetries + 1}):`, file, error);
+
+    // Retry if attempts remaining
+    if (retryCount < maxRetries) {
+      console.log(`Retrying ${file}...`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+      return processFile(file, retryCount + 1); // Recursive retry
+    }
+
+    // Max retries reached
+    errorCount++;
+  }
+  processedCount++;
+  updateProgressStats();
 }
 
 // Create progress item
@@ -674,6 +748,24 @@ function loadRecentFiles() {
   } catch (error) {
     console.error('Error loading recent files:', error);
   }
+}
+
+// Theme management
+function loadTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+    themeIcon.textContent = '☀️';
+  } else {
+    document.body.classList.remove('light-mode');
+    themeIcon.textContent = '🌙';
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  themeIcon.textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
 }
 
 // Initialize app when DOM is ready
