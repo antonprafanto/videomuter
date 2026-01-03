@@ -614,54 +614,110 @@ function getOutputPath(inputPath) {
   }
 }
 
-// Check for updates
+// Auto-update event listeners
+window.electronAPI.onUpdateAvailable((data) => {
+  console.log('Update available:', data.version);
+
+  // Show downloading message
+  document.getElementById('updateTitle').textContent = '📥 Downloading Update...';
+  document.getElementById('updateContent').innerHTML = `
+    <p>A new version is available: <strong>v${data.version}</strong></p>
+    <p>Downloading update in the background...</p>
+    <div id="downloadProgress" style="margin-top: 20px;">
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="updateProgressBar" style="width: 0%"></div>
+      </div>
+      <p id="downloadStatus" style="margin-top: 10px; font-size: 0.9rem; color: var(--text-secondary);">Starting download...</p>
+    </div>
+  `;
+  downloadUpdateBtn.style.display = 'none';
+  updateModal.style.display = 'flex';
+});
+
+window.electronAPI.onUpdateNotAvailable(() => {
+  console.log('No updates available');
+  // Only show "up to date" modal if user manually clicked check for updates
+  if (checkUpdateBtn.disabled) {
+    document.getElementById('updateTitle').textContent = '✅ You\'re Up to Date!';
+    document.getElementById('updateContent').innerHTML = `
+      <p>You are using the latest version.</p>
+    `;
+    downloadUpdateBtn.style.display = 'none';
+    updateModal.style.display = 'flex';
+  }
+});
+
+window.electronAPI.onUpdateDownloadProgress((data) => {
+  const percent = data.percent.toFixed(1);
+  const transferred = (data.transferred / 1024 / 1024).toFixed(2);
+  const total = (data.total / 1024 / 1024).toFixed(2);
+
+  const progressBar = document.getElementById('updateProgressBar');
+  const downloadStatus = document.getElementById('downloadStatus');
+
+  if (progressBar) {
+    progressBar.style.width = `${percent}%`;
+  }
+  if (downloadStatus) {
+    downloadStatus.textContent = `${transferred} MB / ${total} MB (${percent}%)`;
+  }
+});
+
+window.electronAPI.onUpdateDownloaded((data) => {
+  console.log('Update downloaded:', data.version);
+
+  // Show install prompt
+  document.getElementById('updateTitle').textContent = '✅ Update Ready!';
+  document.getElementById('updateContent').innerHTML = `
+    <p>Update v${data.version} has been downloaded successfully!</p>
+    <p>Click "Install & Restart" to update now, or the update will be installed when you close the app.</p>
+  `;
+
+  // Change button to "Install & Restart"
+  downloadUpdateBtn.style.display = 'inline-block';
+  downloadUpdateBtn.textContent = '🔄 Install & Restart';
+  downloadUpdateBtn.onclick = () => {
+    window.electronAPI.installUpdate();
+  };
+});
+
+window.electronAPI.onUpdateError((data) => {
+  console.error('Update error:', data.message);
+
+  document.getElementById('updateTitle').textContent = '❌ Update Failed';
+  document.getElementById('updateContent').innerHTML = `
+    <p>Failed to download update.</p>
+    <p style="font-size: 0.9rem; color: var(--text-secondary);">Error: ${data.message}</p>
+    <p>Please try again later or download manually from GitHub.</p>
+  `;
+  downloadUpdateBtn.style.display = 'inline-block';
+  downloadUpdateBtn.textContent = '🌐 Download from GitHub';
+  downloadUpdateBtn.onclick = () => {
+    window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
+  };
+});
+
+// Manual check for updates
 async function checkForUpdates() {
   try {
     checkUpdateBtn.disabled = true;
     checkUpdateBtn.textContent = 'Checking...';
 
-    const updateInfo = await window.electronAPI.checkForUpdates();
-
-    if (updateInfo.error) {
-      alert('Failed to check for updates. Please check your internet connection.');
-      return;
-    }
-
-    if (updateInfo.hasUpdate) {
-      // Show update available modal
-      document.getElementById('updateTitle').textContent = '🎉 Update Available!';
-      document.getElementById('currentVersion').textContent = `v${updateInfo.currentVersion}`;
-      document.getElementById('latestVersion').textContent = `v${updateInfo.latestVersion}`;
-
-      // Format release notes
-      const releaseNotes = document.getElementById('releaseNotes');
-      releaseNotes.innerHTML = `<p><strong>What's New:</strong></p><pre style="white-space: pre-wrap; color: #a0a0a0;">${updateInfo.releaseNotes || 'No release notes available.'}</pre>`;
-
-      // Set download link
-      downloadUpdateBtn.href = updateInfo.downloadUrl;
-
-      updateModal.style.display = 'flex';
-    } else {
-      // No update available
-      document.getElementById('updateTitle').textContent = '✅ You\'re Up to Date!';
-      document.getElementById('updateContent').innerHTML = `
-        <p>You are using the latest version.</p>
-        <p><strong>Current version:</strong> v${updateInfo.currentVersion}</p>
-      `;
-      downloadUpdateBtn.style.display = 'none';
-      updateModal.style.display = 'flex';
-    }
+    await window.electronAPI.checkForUpdates();
+    // Result will be handled by event listeners above
   } catch (error) {
     console.error('Error checking for updates:', error);
     alert('Failed to check for updates. Please try again later.');
   } finally {
-    checkUpdateBtn.disabled = false;
-    checkUpdateBtn.innerHTML = `
-      <svg class="update-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-      </svg>
-      Check for Updates
-    `;
+    setTimeout(() => {
+      checkUpdateBtn.disabled = false;
+      checkUpdateBtn.innerHTML = `
+        <svg class="update-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+        Check for Updates
+      `;
+    }, 2000);
   }
 }
 

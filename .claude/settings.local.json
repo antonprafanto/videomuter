@@ -40,7 +40,9 @@
       "Bash(powershell.exe -Command \"Get-Content RELEASE_NOTES_v1.2.0.md | Set-Clipboard; Write-Host ''Release notes for v1.2.0 copied to clipboard!''\")",
       "Bash(git tag:*)",
       "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/actions''\")",
-      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/releases''\")"
+      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/releases''\")",
+      "Bash(powershell.exe -Command \"Start-Process ''https://github.com/antonprafanto/videomuter/actions/runs/12611917283''\")",
+      "Bash(git ls-tree:*)"
     ],
     "deny": [],
     "ask": []

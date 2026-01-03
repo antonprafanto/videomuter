@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
@@ -43,6 +44,65 @@ function createWindow() {
   // mainWindow.webContents.openDevTools();
 }
 
+// Configure auto-updater
+autoUpdater.autoDownload = true; // Auto-download updates
+autoUpdater.autoInstallOnAppQuit = true; // Auto-install on quit
+
+// Auto-updater event listeners
+autoUpdater.on('checking-for-update', () => {
+  log('INFO', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  log('INFO', 'Update available', { version: info.version });
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes
+    });
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log('INFO', 'No updates available', { version: info.version });
+  if (mainWindow) {
+    mainWindow.webContents.send('update-not-available');
+  }
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  log('INFO', 'Download progress', {
+    percent: progressObj.percent.toFixed(2),
+    transferred: (progressObj.transferred / 1024 / 1024).toFixed(2) + ' MB',
+    total: (progressObj.total / 1024 / 1024).toFixed(2) + ' MB'
+  });
+  if (mainWindow) {
+    mainWindow.webContents.send('update-download-progress', {
+      percent: progressObj.percent,
+      transferred: progressObj.transferred,
+      total: progressObj.total
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log('SUCCESS', 'Update downloaded', { version: info.version });
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', {
+      version: info.version
+    });
+  }
+});
+
+autoUpdater.on('error', (error) => {
+  log('ERROR', 'Auto-updater error', { error: error.message });
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', {
+      message: error.message
+    });
+  }
+});
+
 app.whenReady().then(() => {
   // Set FFmpeg binary path to bundled version
   try {
@@ -55,6 +115,11 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  // Check for updates after window is created (5 seconds delay)
+  setTimeout(() => {
+    autoUpdater.checkForUpdates();
+  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -328,71 +393,21 @@ ipcMain.handle('open-external-link', async (_event, url) => {
   await shell.openExternal(url);
 });
 
-// Check for updates from GitHub releases
+// Manual check for updates (triggered by user button)
 ipcMain.handle('check-for-updates', async () => {
   try {
-    const { net } = require('electron');
-    const currentVersion = app.getVersion();
-
-    const request = net.request({
-      method: 'GET',
-      url: 'https://api.github.com/repos/antonprafanto/videomuter/releases/latest'
-    });
-
-    return new Promise((resolve, reject) => {
-      request.on('response', (response) => {
-        let data = '';
-
-        response.on('data', (chunk) => {
-          data += chunk;
-        });
-
-        response.on('end', () => {
-          try {
-            const release = JSON.parse(data);
-            const latestVersion = release.tag_name.replace('v', '');
-            const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-
-            resolve({
-              hasUpdate,
-              currentVersion,
-              latestVersion,
-              downloadUrl: release.html_url,
-              releaseNotes: release.body
-            });
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-
-      request.on('error', (error) => {
-        reject(error);
-      });
-
-      request.end();
-    });
+    await autoUpdater.checkForUpdates();
+    return { success: true };
   } catch (error) {
     console.error('Error checking for updates:', error);
     return {
-      hasUpdate: false,
+      success: false,
       error: error.message
     };
   }
 });
 
-// Compare version numbers (semver)
-function compareVersions(v1, v2) {
-  const parts1 = v1.split('.').map(Number);
-  const parts2 = v2.split('.').map(Number);
-
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const part1 = parts1[i] || 0;
-    const part2 = parts2[i] || 0;
-
-    if (part1 > part2) return 1;
-    if (part1 < part2) return -1;
-  }
-
-  return 0;
-}
+// Install update and restart
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall(false, true);
+});

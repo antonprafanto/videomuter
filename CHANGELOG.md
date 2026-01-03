@@ -2,6 +2,22 @@
 
 All notable changes to Video Muter will be documented in this file.
 
+## [1.3.0] - 2026-01-03
+
+### Added
+- 🚀 **True Auto-Update** - Automatic download and install updates!
+  - No more manual downloads - updates install automatically
+  - Background download with progress indicator
+  - One-click install & restart when update is ready
+  - Auto-install on app quit if you don't want to restart immediately
+  - Uses electron-updater for seamless updates from GitHub Releases
+
+### Technical Improvements
+- Integrated `electron-updater` package for robust auto-update functionality
+- Auto-update check on app startup (5 second delay)
+- Real-time download progress tracking
+- Better error handling for failed updates
+
 ## [1.2.1] - 2026-01-03
 
 ### Fixed
