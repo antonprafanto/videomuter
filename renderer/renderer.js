@@ -640,6 +640,16 @@ async function checkForUpdates() {
 
     if (result.success) {
       if (result.hasUpdate) {
+        // Store update info for download
+        window.pendingUpdate = {
+          exeDownloadUrl: result.exeDownloadUrl,
+          exeFileName: result.exeFileName,
+          exeSize: result.exeSize,
+          latestVersion: result.latestVersion
+        };
+
+        const fileSizeMB = result.exeSize ? (result.exeSize / 1024 / 1024).toFixed(1) : '~90';
+
         // Update available - show download modal
         document.getElementById('updateTitle').textContent = '🎉 Update Available!';
         document.getElementById('updateContent').innerHTML = `
@@ -647,21 +657,25 @@ async function checkForUpdates() {
           <p><strong>Current version:</strong> v${result.currentVersion}</p>
           <p><strong>Latest version:</strong> v${result.latestVersion}</p>
           ${result.releaseNotes ? `
-          <div style="margin: 20px 0; text-align: left; max-height: 150px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-            <small style="white-space: pre-wrap;">${result.releaseNotes.substring(0, 500)}${result.releaseNotes.length > 500 ? '...' : ''}</small>
+          <div style="margin: 20px 0; text-align: left; max-height: 100px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <small style="white-space: pre-wrap;">${result.releaseNotes.substring(0, 300)}${result.releaseNotes.length > 300 ? '...' : ''}</small>
           </div>
           ` : ''}
-          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 15px;">
-            Download the new version and replace your current portable executable.
+          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 10px;">
+            📦 File size: ${fileSizeMB} MB
           </p>
+          <div id="downloadProgressContainer" style="display: none; margin-top: 15px;">
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="updateDownloadBar" style="width: 0%"></div>
+            </div>
+            <p id="downloadStatusText" style="margin-top: 10px; font-size: 0.85rem;">Preparing download...</p>
+          </div>
         `;
+
         downloadUpdateBtn.style.display = 'inline-block';
-        downloadUpdateBtn.textContent = '⬇️ Download Update';
-        downloadUpdateBtn.href = result.downloadUrl;
-        downloadUpdateBtn.onclick = (e) => {
-          e.preventDefault();
-          window.electronAPI.openExternalLink(result.downloadUrl);
-        };
+        downloadUpdateBtn.textContent = '⬇️ Download & Install';
+        downloadUpdateBtn.onclick = startAutoDownload;
+
       } else {
         // Already up to date
         document.getElementById('updateTitle').textContent = '✅ You\'re Up to Date!';
@@ -712,6 +726,80 @@ async function checkForUpdates() {
         Check for Updates
       `;
     }, 1000);
+  }
+}
+
+// Start auto-download of update
+async function startAutoDownload(e) {
+  e.preventDefault();
+
+  const update = window.pendingUpdate;
+  if (!update || !update.exeDownloadUrl) {
+    // Fallback to manual download
+    window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
+    return;
+  }
+
+  // Update UI to show downloading
+  document.getElementById('updateTitle').textContent = '📥 Downloading Update...';
+  downloadUpdateBtn.style.display = 'none';
+  closeUpdateModal.style.display = 'none';
+
+  const progressContainer = document.getElementById('downloadProgressContainer');
+  const progressBar = document.getElementById('updateDownloadBar');
+  const statusText = document.getElementById('downloadStatusText');
+
+  if (progressContainer) progressContainer.style.display = 'block';
+
+  // Setup progress listener
+  window.electronAPI.onDownloadProgress((data) => {
+    const percent = data.percent.toFixed(1);
+    const downloadedMB = (data.downloaded / 1024 / 1024).toFixed(1);
+    const totalMB = (data.total / 1024 / 1024).toFixed(1);
+
+    if (progressBar) progressBar.style.width = `${percent}%`;
+    if (statusText) statusText.textContent = `Downloading: ${downloadedMB} MB / ${totalMB} MB (${percent}%)`;
+  });
+
+  try {
+    const result = await window.electronAPI.downloadUpdate(update.exeDownloadUrl, update.exeFileName);
+
+    // Remove progress listener
+    window.electronAPI.removeDownloadProgressListener();
+
+    if (result.success) {
+      // Success - show completion message
+      document.getElementById('updateTitle').textContent = '✅ Download Complete!';
+      document.getElementById('updateContent').innerHTML = `
+        <p>Update has been downloaded successfully!</p>
+        <p style="margin-top: 15px;"><strong>File:</strong> ${result.fileName}</p>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 15px;">
+          📁 The Downloads folder has been opened.<br>
+          Please close this app and run the new version.
+        </p>
+      `;
+      closeUpdateModal.style.display = 'inline-block';
+      closeUpdateModal.textContent = 'Close';
+    } else {
+      throw new Error(result.error || 'Download failed');
+    }
+  } catch (error) {
+    console.error('Download error:', error);
+    window.electronAPI.removeDownloadProgressListener();
+
+    document.getElementById('updateTitle').textContent = '❌ Download Failed';
+    document.getElementById('updateContent').innerHTML = `
+      <p>Failed to download update.</p>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">Error: ${error.message}</p>
+      <p>Please try downloading manually from GitHub.</p>
+    `;
+    downloadUpdateBtn.style.display = 'inline-block';
+    downloadUpdateBtn.textContent = '🌐 Download Manually';
+    downloadUpdateBtn.onclick = (e) => {
+      e.preventDefault();
+      window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
+    };
+    closeUpdateModal.style.display = 'inline-block';
   }
 }
 

@@ -49,12 +49,32 @@ function checkForUpdatesViaGitHub() {
         try {
           if (res.statusCode === 200) {
             const release = JSON.parse(data);
+
+            // Find the .exe asset download URL
+            let exeDownloadUrl = null;
+            let exeFileName = null;
+            let exeSize = 0;
+
+            if (release.assets && release.assets.length > 0) {
+              const exeAsset = release.assets.find(asset =>
+                asset.name.toLowerCase().endsWith('.exe')
+              );
+              if (exeAsset) {
+                exeDownloadUrl = exeAsset.browser_download_url;
+                exeFileName = exeAsset.name;
+                exeSize = exeAsset.size;
+              }
+            }
+
             resolve({
               success: true,
               latestVersion: release.tag_name.replace(/^v/, ''),
               currentVersion: app.getVersion(),
               releaseUrl: release.html_url,
               downloadUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+              exeDownloadUrl: exeDownloadUrl,
+              exeFileName: exeFileName,
+              exeSize: exeSize,
               releaseNotes: release.body || '',
               publishedAt: release.published_at
             });
@@ -433,6 +453,9 @@ ipcMain.handle('check-for-updates', async () => {
         currentVersion: result.currentVersion,
         latestVersion: result.latestVersion,
         downloadUrl: result.downloadUrl,
+        exeDownloadUrl: result.exeDownloadUrl,
+        exeFileName: result.exeFileName,
+        exeSize: result.exeSize,
         releaseNotes: result.releaseNotes
       };
     } else {
@@ -455,4 +478,105 @@ ipcMain.handle('check-for-updates', async () => {
 // Get app version
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+// Download update file
+ipcMain.handle('download-update', async (_event, downloadUrl, fileName) => {
+  try {
+    const downloadPath = app.getPath('downloads');
+    const filePath = path.join(downloadPath, fileName);
+
+    log('INFO', 'Starting update download', { url: downloadUrl, destination: filePath });
+
+    return new Promise((resolve, reject) => {
+      // Handle redirects (GitHub uses redirects for downloads)
+      const downloadWithRedirect = (url) => {
+        const urlObj = new URL(url);
+        const protocol = urlObj.protocol === 'https:' ? https : require('http');
+
+        const options = {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Video-Muter-App'
+          }
+        };
+
+        const req = protocol.request(options, (res) => {
+          // Handle redirect
+          if (res.statusCode === 302 || res.statusCode === 301) {
+            const redirectUrl = res.headers.location;
+            log('INFO', 'Following redirect', { to: redirectUrl });
+            downloadWithRedirect(redirectUrl);
+            return;
+          }
+
+          if (res.statusCode !== 200) {
+            reject(new Error(`Download failed with status ${res.statusCode}`));
+            return;
+          }
+
+          const totalSize = parseInt(res.headers['content-length'], 10) || 0;
+          let downloadedSize = 0;
+
+          const fileStream = fs.createWriteStream(filePath);
+
+          res.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            const percent = totalSize > 0 ? (downloadedSize / totalSize) * 100 : 0;
+
+            // Send progress to renderer
+            if (mainWindow && mainWindow.webContents) {
+              mainWindow.webContents.send('download-progress', {
+                percent: percent,
+                downloaded: downloadedSize,
+                total: totalSize
+              });
+            }
+          });
+
+          res.pipe(fileStream);
+
+          fileStream.on('finish', () => {
+            fileStream.close();
+            log('SUCCESS', 'Update downloaded successfully', { path: filePath });
+
+            // Open Downloads folder with the file selected
+            shell.showItemInFolder(filePath);
+
+            resolve({
+              success: true,
+              filePath: filePath,
+              fileName: fileName
+            });
+          });
+
+          fileStream.on('error', (err) => {
+            fs.unlink(filePath, () => { }); // Delete partial file
+            reject(err);
+          });
+        });
+
+        req.on('error', (error) => {
+          reject(error);
+        });
+
+        req.setTimeout(300000, () => { // 5 minute timeout
+          req.destroy();
+          reject(new Error('Download timeout'));
+        });
+
+        req.end();
+      };
+
+      downloadWithRedirect(downloadUrl);
+    });
+  } catch (error) {
+    log('ERROR', 'Download failed', { error: error.message });
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 });

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lynk Email Collector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 380px;
+            min-height: 400px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .stats {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-card .label {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #fff;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-danger {
+            background: rgba(255, 59, 48, 0.8);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 59, 48, 1);
+        }
+
+        .email-list {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .email-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .email-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .email-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .email-item:last-child {
+            border-bottom: none;
+        }
+
+        .email-item .email {
+            flex: 1;
+            word-break: break-all;
+        }
+
+        .email-item .remove-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 5px;
+        }
+
+        .email-item .remove-btn:hover {
+            color: #ff3b30;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            opacity: 0.7;
+        }
+
+        .empty-state .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .status.success {
+            background: rgba(52, 199, 89, 0.3);
+        }
+
+        .status.error {
+            background: rgba(255, 59, 48, 0.3);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Lynk Email Collector</h1>
+            <p>Kumpulkan email pelanggan dari order Lynk.id</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="number" id="emailCount">0</div>
+                <div class="label">Email Terkumpul</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="uniqueCount">0</div>
+                <div class="label">Email Unik</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" id="collectBtn">
+                🔍 Kumpulkan Email dari Halaman
+            </button>
+            <button class="btn btn-secondary" id="copyBtn">
+                📋 Copy Semua Email
+            </button>
+            <button class="btn btn-secondary" id="exportBtn">
+                💾 Export ke CSV
+            </button>
+            <button class="btn btn-danger" id="clearBtn">
+                🗑️ Hapus Semua
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Sedang mengumpulkan email...</p>
+        </div>
+
+        <div class="email-list" id="emailList">
+            <div class="empty-state" id="emptyState">
+                <div class="icon">📭</div>
+                <p>Belum ada email</p>
+                <p style="font-size: 11px; margin-top: 5px;">Buka halaman order Lynk.id dan klik "Kumpulkan Email"</p>
+            </div>
+        </div>
+
+        <div class="status" id="status" style="display: none;"></div>
+
+        <div class="footer">
+            Made with ❤️ for Berkah Produk
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

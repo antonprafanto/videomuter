@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
   <title>Video Muter - Batch Mute Videos</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="container">
     <!-- Header -->
@@ -25,14 +28,16 @@
       <!-- Drop Zone -->
       <div class="drop-zone" id="dropZone">
         <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
         <h3 class="drop-title">Drag & Drop Video Files</h3>
         <p class="drop-text">atau</p>
         <button class="btn btn-primary" id="selectFilesBtn">Pilih File Video</button>
         <p class="drop-hint">Support: MP4, AVI, MOV, MKV, FLV, WMV, WebM, M4V</p>
         <p class="drop-hint" style="margin-top: 10px; font-size: 0.8rem;">
-          ⌨️ Shortcuts: <strong>Ctrl+O</strong> Open • <strong>Ctrl+Enter</strong> Start • <strong>Space</strong> Pause/Resume • <strong>Esc</strong> Cancel • <strong>Del</strong> Clear
+          ⌨️ Shortcuts: <strong>Ctrl+O</strong> Open • <strong>Ctrl+Enter</strong> Start • <strong>Space</strong>
+          Pause/Resume • <strong>Esc</strong> Cancel • <strong>Del</strong> Clear
         </p>
       </div>
 
@@ -73,7 +78,8 @@
             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="200" value="0" step="10">
             <span class="volume-value" id="volumeValue">Mute (0%)</span>
           </div>
-          <small style="color: var(--text-secondary); font-size: 0.85rem;">0% = Mute, 100% = Original, 200% = Boost 2x</small>
+          <small style="color: var(--text-secondary); font-size: 0.85rem;">0% = Mute, 100% = Original, 200% = Boost
+            2x</small>
         </div>
       </div>
 
@@ -100,7 +106,8 @@
           <button class="btn btn-secondary" id="resumeBtn" style="display: none;">
             <span>▶</span> Resume
           </button>
-          <button class="btn btn-secondary" id="cancelBtn" style="background: rgba(255, 59, 48, 0.2); border-color: rgba(255, 59, 48, 0.3); color: #ff3b30;">
+          <button class="btn btn-secondary" id="cancelBtn"
+            style="background: rgba(255, 59, 48, 0.2); border-color: rgba(255, 59, 48, 0.3); color: #ff3b30;">
             <span>❌</span> Cancel All
           </button>
         </div>
@@ -119,23 +126,25 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p><span id="appVersion">v1.3.0</span> | Powered by FFmpeg | Made with ❤️ by Anton Prafanto</p>
+      <p><span id="appVersion">v1.3.1</span> | Powered by FFmpeg | Made with ❤️ by Anton Prafanto</p>
       <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
         <button class="btn-donate" id="donateBtn">
           <svg class="donate-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z"/>
+            <path
+              d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z" />
           </svg>
           Kritik & Saran
         </button>
         <button class="btn-update" id="checkUpdateBtn">
           <svg class="update-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
           </svg>
           Check for Updates
         </button>
       </div>
       <p style="margin-top: 10px; font-size: 12px; color: #888;">
-        <a href="https://github.com/antonprafanto/videomuter" target="_blank" style="color: #667eea; text-decoration: none;">⭐ Star on GitHub</a> |
+        <a href="https://github.com/antonprafanto/videomuter" target="_blank"
+          style="color: #667eea; text-decoration: none;">⭐ Star on GitHub</a> |
         Open Source & Free Forever
       </p>
     </footer>
@@ -170,4 +179,5 @@
 
   <script src="renderer.js"></script>
 </body>
+
 </html>

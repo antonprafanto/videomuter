@@ -33,6 +33,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Get app version
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
+  // Download update file
+  downloadUpdate: (downloadUrl, fileName) => ipcRenderer.invoke('download-update', downloadUrl, fileName),
+
+  // Listen to download progress
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('download-progress', (event, data) => callback(data));
+  },
+
+  // Remove download progress listener
+  removeDownloadProgressListener: () => {
+    ipcRenderer.removeAllListeners('download-progress');
+  },
+
   // Pause/Resume/Cancel processing
   pauseProcessing: () => ipcRenderer.invoke('pause-processing'),
   resumeProcessing: () => ipcRenderer.invoke('resume-processing'),
