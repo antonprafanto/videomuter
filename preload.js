@@ -27,18 +27,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Open external link
   openExternalLink: (url) => ipcRenderer.invoke('open-external-link', url),
 
-  // Check for updates
+  // Check for updates via GitHub API
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 
-  // Install update and restart
-  installUpdate: () => ipcRenderer.invoke('install-update'),
-
-  // Update event listeners
-  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_event, data) => callback(data)),
-  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', () => callback()),
-  onUpdateDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (_event, data) => callback(data)),
-  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_event, data) => callback(data)),
-  onUpdateError: (callback) => ipcRenderer.on('update-error', (_event, data) => callback(data)),
+  // Get app version
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // Pause/Resume/Cancel processing
   pauseProcessing: () => ipcRenderer.invoke('pause-processing'),

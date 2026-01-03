@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const { autoUpdater } = require('electron-updater');
+const https = require('https');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
@@ -8,6 +8,10 @@ let mainWindow;
 let currentFFmpegProcess = null;
 let isPaused = false;
 let isCancelled = false;
+
+// GitHub repository info for update checking
+const GITHUB_OWNER = 'antonprafanto';
+const GITHUB_REPO = 'videomuter';
 
 // Simple logging function
 function log(level, message, data = {}) {
@@ -19,6 +23,83 @@ function log(level, message, data = {}) {
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send('log-message', logData);
   }
+}
+
+// Check for updates via GitHub API
+function checkForUpdatesViaGitHub() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Video-Muter-App',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode === 200) {
+            const release = JSON.parse(data);
+            resolve({
+              success: true,
+              latestVersion: release.tag_name.replace(/^v/, ''),
+              currentVersion: app.getVersion(),
+              releaseUrl: release.html_url,
+              downloadUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+              releaseNotes: release.body || '',
+              publishedAt: release.published_at
+            });
+          } else if (res.statusCode === 404) {
+            resolve({
+              success: false,
+              error: 'No releases found'
+            });
+          } else {
+            resolve({
+              success: false,
+              error: `GitHub API returned status ${res.statusCode}`
+            });
+          }
+        } catch (parseError) {
+          reject(new Error('Failed to parse GitHub response'));
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      reject(error);
+    });
+
+    req.setTimeout(10000, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+
+    req.end();
+  });
+}
+
+// Compare semantic versions
+function isNewerVersion(latestVersion, currentVersion) {
+  const latest = latestVersion.split('.').map(Number);
+  const current = currentVersion.split('.').map(Number);
+
+  for (let i = 0; i < Math.max(latest.length, current.length); i++) {
+    const l = latest[i] || 0;
+    const c = current[i] || 0;
+    if (l > c) return true;
+    if (l < c) return false;
+  }
+  return false;
 }
 
 function createWindow() {
@@ -39,69 +120,7 @@ function createWindow() {
   });
 
   mainWindow.loadFile('renderer/index.html');
-
-  // Open DevTools for debugging auto-update (TEMPORARY)
-  mainWindow.webContents.openDevTools();
 }
-
-// Configure auto-updater
-autoUpdater.autoDownload = true; // Auto-download updates
-autoUpdater.autoInstallOnAppQuit = true; // Auto-install on quit
-
-// Auto-updater event listeners
-autoUpdater.on('checking-for-update', () => {
-  log('INFO', 'Checking for updates...');
-});
-
-autoUpdater.on('update-available', (info) => {
-  log('INFO', 'Update available', { version: info.version });
-  if (mainWindow) {
-    mainWindow.webContents.send('update-available', {
-      version: info.version,
-      releaseNotes: info.releaseNotes
-    });
-  }
-});
-
-autoUpdater.on('update-not-available', (info) => {
-  log('INFO', 'No updates available', { version: info.version });
-  if (mainWindow) {
-    mainWindow.webContents.send('update-not-available');
-  }
-});
-
-autoUpdater.on('download-progress', (progressObj) => {
-  log('INFO', 'Download progress', {
-    percent: progressObj.percent.toFixed(2),
-    transferred: (progressObj.transferred / 1024 / 1024).toFixed(2) + ' MB',
-    total: (progressObj.total / 1024 / 1024).toFixed(2) + ' MB'
-  });
-  if (mainWindow) {
-    mainWindow.webContents.send('update-download-progress', {
-      percent: progressObj.percent,
-      transferred: progressObj.transferred,
-      total: progressObj.total
-    });
-  }
-});
-
-autoUpdater.on('update-downloaded', (info) => {
-  log('SUCCESS', 'Update downloaded', { version: info.version });
-  if (mainWindow) {
-    mainWindow.webContents.send('update-downloaded', {
-      version: info.version
-    });
-  }
-});
-
-autoUpdater.on('error', (error) => {
-  log('ERROR', 'Auto-updater error', { error: error.message });
-  if (mainWindow) {
-    mainWindow.webContents.send('update-error', {
-      message: error.message
-    });
-  }
-});
 
 app.whenReady().then(() => {
   // Set FFmpeg binary path to bundled version
@@ -115,11 +134,6 @@ app.whenReady().then(() => {
   }
 
   createWindow();
-
-  // Check for updates after window is created (5 seconds delay)
-  setTimeout(() => {
-    autoUpdater.checkForUpdates();
-  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -393,21 +407,52 @@ ipcMain.handle('open-external-link', async (_event, url) => {
   await shell.openExternal(url);
 });
 
-// Manual check for updates (triggered by user button)
+// Manual check for updates via GitHub API (triggered by user button)
 ipcMain.handle('check-for-updates', async () => {
   try {
-    await autoUpdater.checkForUpdates();
-    return { success: true };
+    log('INFO', 'Checking for updates via GitHub API...');
+    const result = await checkForUpdatesViaGitHub();
+
+    if (result.success) {
+      const hasUpdate = isNewerVersion(result.latestVersion, result.currentVersion);
+
+      if (hasUpdate) {
+        log('INFO', 'Update available', {
+          currentVersion: result.currentVersion,
+          latestVersion: result.latestVersion
+        });
+      } else {
+        log('INFO', 'Already on latest version', {
+          currentVersion: result.currentVersion
+        });
+      }
+
+      return {
+        success: true,
+        hasUpdate,
+        currentVersion: result.currentVersion,
+        latestVersion: result.latestVersion,
+        downloadUrl: result.downloadUrl,
+        releaseNotes: result.releaseNotes
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error,
+        currentVersion: app.getVersion()
+      };
+    }
   } catch (error) {
     console.error('Error checking for updates:', error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      currentVersion: app.getVersion()
     };
   }
 });
 
-// Install update and restart
-ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall(false, true);
+// Get app version
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion();
 });

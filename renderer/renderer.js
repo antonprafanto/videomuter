@@ -64,8 +64,24 @@ async function init() {
   // Load recent files
   loadRecentFiles();
 
+  // Initialize version display
+  initVersion();
+
   setupEventListeners();
   setupProgressListener();
+}
+
+// Initialize version display from main process
+async function initVersion() {
+  try {
+    const version = await window.electronAPI.getAppVersion();
+    const appVersionEl = document.getElementById('appVersion');
+    if (appVersionEl) {
+      appVersionEl.textContent = `v${version}`;
+    }
+  } catch (error) {
+    console.error('Failed to get app version:', error);
+  }
 }
 
 // Setup event listeners
@@ -614,100 +630,78 @@ function getOutputPath(inputPath) {
   }
 }
 
-// Auto-update event listeners
-window.electronAPI.onUpdateAvailable((data) => {
-  console.log('Update available:', data.version);
-
-  // Show downloading message
-  document.getElementById('updateTitle').textContent = '📥 Downloading Update...';
-  document.getElementById('updateContent').innerHTML = `
-    <p>A new version is available: <strong>v${data.version}</strong></p>
-    <p>Downloading update in the background...</p>
-    <div id="downloadProgress" style="margin-top: 20px;">
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="updateProgressBar" style="width: 0%"></div>
-      </div>
-      <p id="downloadStatus" style="margin-top: 10px; font-size: 0.9rem; color: var(--text-secondary);">Starting download...</p>
-    </div>
-  `;
-  downloadUpdateBtn.style.display = 'none';
-  updateModal.style.display = 'flex';
-});
-
-window.electronAPI.onUpdateNotAvailable(() => {
-  console.log('No updates available');
-  // Only show "up to date" modal if user manually clicked check for updates
-  if (checkUpdateBtn.disabled) {
-    document.getElementById('updateTitle').textContent = '✅ You\'re Up to Date!';
-    document.getElementById('updateContent').innerHTML = `
-      <p>You are using the latest version.</p>
-    `;
-    downloadUpdateBtn.style.display = 'none';
-    updateModal.style.display = 'flex';
-  }
-});
-
-window.electronAPI.onUpdateDownloadProgress((data) => {
-  const percent = data.percent.toFixed(1);
-  const transferred = (data.transferred / 1024 / 1024).toFixed(2);
-  const total = (data.total / 1024 / 1024).toFixed(2);
-
-  const progressBar = document.getElementById('updateProgressBar');
-  const downloadStatus = document.getElementById('downloadStatus');
-
-  if (progressBar) {
-    progressBar.style.width = `${percent}%`;
-  }
-  if (downloadStatus) {
-    downloadStatus.textContent = `${transferred} MB / ${total} MB (${percent}%)`;
-  }
-});
-
-window.electronAPI.onUpdateDownloaded((data) => {
-  console.log('Update downloaded:', data.version);
-
-  // Show install prompt
-  document.getElementById('updateTitle').textContent = '✅ Update Ready!';
-  document.getElementById('updateContent').innerHTML = `
-    <p>Update v${data.version} has been downloaded successfully!</p>
-    <p>Click "Install & Restart" to update now, or the update will be installed when you close the app.</p>
-  `;
-
-  // Change button to "Install & Restart"
-  downloadUpdateBtn.style.display = 'inline-block';
-  downloadUpdateBtn.textContent = '🔄 Install & Restart';
-  downloadUpdateBtn.onclick = () => {
-    window.electronAPI.installUpdate();
-  };
-});
-
-window.electronAPI.onUpdateError((data) => {
-  console.error('Update error:', data.message);
-
-  document.getElementById('updateTitle').textContent = '❌ Update Failed';
-  document.getElementById('updateContent').innerHTML = `
-    <p>Failed to download update.</p>
-    <p style="font-size: 0.9rem; color: var(--text-secondary);">Error: ${data.message}</p>
-    <p>Please try again later or download manually from GitHub.</p>
-  `;
-  downloadUpdateBtn.style.display = 'inline-block';
-  downloadUpdateBtn.textContent = '🌐 Download from GitHub';
-  downloadUpdateBtn.onclick = () => {
-    window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
-  };
-});
-
-// Manual check for updates
+// Manual check for updates via GitHub API
 async function checkForUpdates() {
   try {
     checkUpdateBtn.disabled = true;
     checkUpdateBtn.textContent = 'Checking...';
 
-    await window.electronAPI.checkForUpdates();
-    // Result will be handled by event listeners above
+    const result = await window.electronAPI.checkForUpdates();
+
+    if (result.success) {
+      if (result.hasUpdate) {
+        // Update available - show download modal
+        document.getElementById('updateTitle').textContent = '🎉 Update Available!';
+        document.getElementById('updateContent').innerHTML = `
+          <p>A new version is available!</p>
+          <p><strong>Current version:</strong> v${result.currentVersion}</p>
+          <p><strong>Latest version:</strong> v${result.latestVersion}</p>
+          ${result.releaseNotes ? `
+          <div style="margin: 20px 0; text-align: left; max-height: 150px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <small style="white-space: pre-wrap;">${result.releaseNotes.substring(0, 500)}${result.releaseNotes.length > 500 ? '...' : ''}</small>
+          </div>
+          ` : ''}
+          <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 15px;">
+            Download the new version and replace your current portable executable.
+          </p>
+        `;
+        downloadUpdateBtn.style.display = 'inline-block';
+        downloadUpdateBtn.textContent = '⬇️ Download Update';
+        downloadUpdateBtn.href = result.downloadUrl;
+        downloadUpdateBtn.onclick = (e) => {
+          e.preventDefault();
+          window.electronAPI.openExternalLink(result.downloadUrl);
+        };
+      } else {
+        // Already up to date
+        document.getElementById('updateTitle').textContent = '✅ You\'re Up to Date!';
+        document.getElementById('updateContent').innerHTML = `
+          <p>You are using the latest version.</p>
+          <p><strong>Current version:</strong> v${result.currentVersion}</p>
+        `;
+        downloadUpdateBtn.style.display = 'none';
+      }
+      updateModal.style.display = 'flex';
+    } else {
+      // Error checking
+      document.getElementById('updateTitle').textContent = '❌ Check Failed';
+      document.getElementById('updateContent').innerHTML = `
+        <p>Could not check for updates.</p>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">Error: ${result.error}</p>
+        <p>Please check your internet connection or try again later.</p>
+      `;
+      downloadUpdateBtn.style.display = 'inline-block';
+      downloadUpdateBtn.textContent = '🌐 Open GitHub Releases';
+      downloadUpdateBtn.onclick = (e) => {
+        e.preventDefault();
+        window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
+      };
+      updateModal.style.display = 'flex';
+    }
   } catch (error) {
     console.error('Error checking for updates:', error);
-    alert('Failed to check for updates. Please try again later.');
+    document.getElementById('updateTitle').textContent = '❌ Check Failed';
+    document.getElementById('updateContent').innerHTML = `
+      <p>An unexpected error occurred.</p>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">Error: ${error.message}</p>
+    `;
+    downloadUpdateBtn.style.display = 'inline-block';
+    downloadUpdateBtn.textContent = '🌐 Open GitHub Releases';
+    downloadUpdateBtn.onclick = (e) => {
+      e.preventDefault();
+      window.electronAPI.openExternalLink('https://github.com/antonprafanto/videomuter/releases/latest');
+    };
+    updateModal.style.display = 'flex';
   } finally {
     setTimeout(() => {
       checkUpdateBtn.disabled = false;
@@ -717,7 +711,7 @@ async function checkForUpdates() {
         </svg>
         Check for Updates
       `;
-    }, 2000);
+    }, 1000);
   }
 }
 
