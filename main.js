@@ -40,8 +40,8 @@ function createWindow() {
 
   mainWindow.loadFile('renderer/index.html');
 
-  // Uncomment untuk debug
-  // mainWindow.webContents.openDevTools();
+  // Open DevTools for debugging auto-update (TEMPORARY)
+  mainWindow.webContents.openDevTools();
 }
 
 // Configure auto-updater

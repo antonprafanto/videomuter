@@ -40,6 +40,35 @@ jobs:
             exit 1
           }
 
+      - name: Create latest.yml for auto-update
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Replace("v", "")
+          $exePath = "dist/VideoMuter-Portable.exe"
+
+          if (Test-Path $exePath) {
+            $fileSize = (Get-Item $exePath).Length
+            $sha512 = (Get-FileHash -Path $exePath -Algorithm SHA512).Hash.ToLower()
+
+            $latestYml = @"
+          version: $version
+          files:
+            - url: VideoMuter-Portable.exe
+              sha512: $sha512
+              size: $fileSize
+          path: VideoMuter-Portable.exe
+          sha512: $sha512
+          releaseDate: $(Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
+          "@
+
+            $latestYml | Out-File -FilePath "dist/latest.yml" -Encoding utf8
+            Write-Host "Created latest.yml:"
+            Get-Content "dist/latest.yml"
+          } else {
+            Write-Host "ERROR: VideoMuter-Portable.exe not found!"
+            exit 1
+          }
+
       - name: Extract release notes
         id: extract_notes
         shell: pwsh
@@ -62,7 +91,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/VideoMuter-Portable.exe
+          files: |
+            dist/VideoMuter-Portable.exe
+            dist/latest.yml
           body_path: release-notes.txt
           draft: false
           prerelease: false
