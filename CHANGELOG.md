@@ -2,6 +2,14 @@
 
 All notable changes to Video Muter will be documented in this file.
 
+## [1.2.1] - 2026-01-03
+
+### Fixed
+- 🐛 **Light Mode Text Visibility** - Fixed text not visible in light mode by using CSS variables for all colors
+  - All text colors now properly switch between dark and light modes
+  - Improved contrast for better readability
+  - Fixed background and border colors to be theme-aware
+
 ## [1.2.0] - 2025-12-31
 
 ### Added - Medium Priority Features ⭐
